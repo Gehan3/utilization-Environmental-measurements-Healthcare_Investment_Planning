@@ -4,13 +4,9 @@ from __future__ import annotations
 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 
-from dashboard.config import (
-    FINANCIAL_ASSUMPTIONS,
-    SCENARIO_PACKAGES,
-)
+from dashboard.config import FINANCIAL_ASSUMPTIONS, SCENARIO_PACKAGES
 from dashboard.data_loader import with_district_aliases
 from dashboard.simulation_engine import (
     compare_scenarios,
@@ -27,6 +23,8 @@ CALIBRATION_MODES = [
 
 def _scenario_controls(districts: list[str]) -> tuple[dict[str, float], str, list[str]]:
     assumptions = FINANCIAL_ASSUMPTIONS
+    aliases = with_district_aliases(pd.DataFrame({"district_name": districts}))
+    alias_lookup = aliases.set_index("district_name")["district_alias"].to_dict()
     with st.sidebar.form("what_if_controls"):
         st.subheader("Scenario controls")
         growth = st.slider(
@@ -34,24 +32,28 @@ def _scenario_controls(districts: list[str]) -> tuple[dict[str, float], str, lis
             int(assumptions["population_growth_min_pct"]),
             int(assumptions["population_growth_max_pct"]),
             int(assumptions["default_population_growth_pct"]),
+            help="Changes demand in selected districts before policy effects are applied.",
         )
         capacity = st.slider(
             "Center capacity expansion (%)",
             int(assumptions["capacity_expansion_min_pct"]),
             int(assumptions["capacity_expansion_max_pct"]),
             int(assumptions["default_capacity_expansion_pct"]),
+            help="Adds effective capacity in the center and capacity-expansion packages.",
         )
         reach = st.slider(
-            "Preventive program reach (% of environmental demand)",
+            "Preventive program reach (% of eligible environmental demand)",
             0,
             int(assumptions["prevention_reach_max_pct"]),
             int(assumptions["default_prevention_reach_pct"]),
+            help="Share of eligible environmental demand reached by prevention programs.",
         )
         access = st.slider(
             "Access-time / triage improvement (minutes)",
             int(assumptions["access_improvement_min_minutes"]),
             int(assumptions["access_improvement_max_minutes"]),
             int(assumptions["default_access_improvement_minutes"]),
+            help="More negative values mean greater time improvement; modeled with diminishing returns.",
         )
         budget = st.slider(
             "5-year budget limit (M EGP)",
@@ -65,12 +67,10 @@ def _scenario_controls(districts: list[str]) -> tuple[dict[str, float], str, lis
             "Target districts",
             districts,
             default=districts[:1],
-            format_func=lambda value: with_district_aliases(
-                pd.DataFrame({"district_name": districts})
-            ).set_index("district_name").loc[value, "district_alias"]
-            + f" ({value})",
+            format_func=lambda value: f"{alias_lookup.get(value, value)} ({value})",
         )
         st.form_submit_button("Run simulation", type="primary")
+
     settings = {
         "population_growth_pct": float(growth),
         "capacity_expansion_pct": float(capacity),
@@ -81,11 +81,7 @@ def _scenario_controls(districts: list[str]) -> tuple[dict[str, float], str, lis
     return settings, SCENARIO_PACKAGES[package_label], target_districts
 
 
-def _pressure_chart(
-    baseline: pd.DataFrame,
-    scenario: pd.DataFrame,
-    calibration_mode: str,
-) -> None:
+def _pressure_chart(baseline: pd.DataFrame, scenario: pd.DataFrame, calibration_mode: str) -> None:
     baseline_plot = baseline[["district_name", "baseline_pressure"]].rename(
         columns={"baseline_pressure": "Pressure"}
     )
@@ -107,20 +103,12 @@ def _pressure_chart(
         labels={"district_alias": "District", "Pressure": "Capacity pressure ratio"},
         title=f"Capacity pressure by district · {calibration_mode}",
     )
-    figure.add_hline(
-        y=1.0,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="Capacity limit = 1.0",
-    )
+    figure.add_hline(y=1.0, line_dash="dash", line_color="red", annotation_text="Capacity limit = 1.0")
     figure.update_layout(height=490, legend={"orientation": "h", "y": -0.2})
     st.plotly_chart(figure, width="stretch")
 
 
-def _render_calibration_note(
-    baseline: pd.DataFrame,
-    calibration_mode: str,
-) -> None:
+def _render_calibration_note(baseline: pd.DataFrame, calibration_mode: str) -> None:
     if calibration_mode == "Raw nominal capacity":
         st.info(
             "Raw mode uses source `pc_visits_demand / pc_effective_capacity`; "
@@ -129,18 +117,17 @@ def _render_calibration_note(
         )
     else:
         st.warning(
-            "Stress-calibrated mode is a transparent scenario visualization, not observed "
-            "capacity utilization. It preserves the district ordering of raw pressure and "
-            "linearly maps its six-month min/max to the configured 0.75–1.35 range. "
-            "Capacity is recalculated as baseline demand divided by that calibrated ratio."
+            "Stress-calibrated mode is a scenario visualization, not observed capacity utilization. "
+            "It preserves district ordering of raw pressure and maps the six-month min/max to the "
+            "configured pressure range. Effective capacity is recalculated from demand and that ratio."
         )
 
 
 def render(panel: pd.DataFrame) -> None:
     st.title("Layer 3 · Executive What-If Simulation")
     st.caption(
-        "Scenario calculations are deterministic and use configurable policy/financial "
-        "assumptions; they are not a forecast or capital-cost estimate."
+        "Deterministic scenario analysis using configurable policy and financial assumptions; "
+        "results are not a forecast or a capital-cost estimate."
     )
     calibration_mode = st.radio(
         "Capacity pressure basis",
@@ -160,32 +147,77 @@ def render(panel: pd.DataFrame) -> None:
     if not targets:
         st.warning("Select at least one target district to run a policy scenario.")
         return
-    active = simulate_policy_package(baseline, settings, active_package, targets)
+
+    try:
+        active = simulate_policy_package(baseline, settings, active_package, targets)
+        comparison = compare_scenarios(baseline, settings, targets)
+    except (ValueError, KeyError) as error:
+        st.error(f"Cannot calculate scenario outcomes: {error}")
+        return
+
     _render_calibration_note(baseline, calibration_mode)
+    target_baseline = baseline.loc[baseline["district_name"].isin(targets)]
+    target_active = active.loc[active["targeted"]]
+    baseline_avg = float(target_baseline["baseline_pressure"].mean())
+    active_avg = float(target_active["scenario_pressure"].mean())
+    baseline_overloaded = int((target_baseline["baseline_pressure"] > 1.0).sum())
+    active_overloaded = int(target_active["overloaded"].sum())
+    active_cost = float(active["cost_m_egp"].iloc[0])
+
+    st.subheader("Active policy impact")
+    metric_cols = st.columns(4)
+    metric_cols[0].metric(
+        "Target average pressure", f"{active_avg:.3f}",
+        delta=f"{active_avg - baseline_avg:+.3f} vs baseline", delta_color="inverse",
+    )
+    metric_cols[1].metric(
+        "Overloaded target districts", f"{active_overloaded} / {len(target_active)}",
+        delta=f"{active_overloaded - baseline_overloaded:+d} vs baseline", delta_color="inverse",
+    )
+    metric_cols[2].metric("5-year package cost", f"{active_cost:.2f} M EGP")
+    metric_cols[3].metric(
+        "Budget remaining", f"{settings['budget_limit_m_egp'] - active_cost:.2f} M EGP",
+        delta="Within budget" if active_cost <= settings["budget_limit_m_egp"] else "Over budget",
+        delta_color="normal" if active_cost <= settings["budget_limit_m_egp"] else "inverse",
+    )
+
     _pressure_chart(baseline, active, calibration_mode)
 
     st.subheader("Budget-constrained package comparison")
-    comparison = compare_scenarios(baseline, settings, targets)
+    display_columns = [
+        "Rank", "Scenario", "5-yr Cost (M EGP)", "Budget Status",
+        "Target Overloaded Districts", "Stabilized Districts",
+        "Target Avg. Pressure", "Pressure Reduction (%)",
+        "Cost per Stabilized District (M EGP)", "Cost Efficiency Score", "Policy Score",
+    ]
     st.dataframe(
-        comparison[
-            [
-                "Rank",
-                "Scenario",
-                "5-yr Cost (M EGP)",
-                "Budget Status",
-                "Overloaded Districts",
-                "Avg. Pressure",
-            ]
-        ].style.format(
-            {
-                "5-yr Cost (M EGP)": "{:.2f}",
-                "Avg. Pressure": "{:.3f}",
-            }
-        ),
+        comparison[display_columns].style.format({
+            "5-yr Cost (M EGP)": "{:.2f}",
+            "Target Avg. Pressure": "{:.3f}",
+            "Pressure Reduction (%)": "{:+.1f}%",
+            "Cost per Stabilized District (M EGP)": "{:.2f}",
+            "Cost Efficiency Score": "{:.1f}",
+            "Policy Score": "{:.1f}",
+        }, na_rep="—"),
         width="stretch",
         hide_index=True,
     )
-    active_cost = float(active["cost_m_egp"].iloc[0])
+
+    impact_figure = px.bar(
+        comparison.sort_values("Pressure Reduction (%)", ascending=True),
+        x="Pressure Reduction (%)",
+        y="Scenario",
+        orientation="h",
+        color="Budget Status",
+        color_discrete_map={"Feasible": "#159a83", "Exceeds": "#d97706"},
+        title="Target-district pressure reduction by policy package",
+        labels={"Pressure Reduction (%)": "Average pressure reduction (%)"},
+        hover_data=["5-yr Cost (M EGP)", "Target Overloaded Districts", "Policy Score"],
+    )
+    impact_figure.add_vline(x=0, line_dash="dash", line_color="#718096")
+    impact_figure.update_layout(height=330, showlegend=True)
+    st.plotly_chart(impact_figure, width="stretch")
+
     if active_cost > settings["budget_limit_m_egp"]:
         st.error(
             f"Active package exceeds the configured budget by "
@@ -194,13 +226,12 @@ def render(panel: pd.DataFrame) -> None:
     else:
         st.success(f"Active package is within budget at {active_cost:.2f} M EGP.")
 
-    st.subheader("Epistemic disclaimer")
+    st.subheader("Model assumptions and limitations")
     st.warning(
-        "Data-driven inputs: district-month visit volumes, environmental encounter "
-        "components, nominal effective capacity, population, and environment-demand "
-        "shares are loaded from the source panel. Synthetic assumptions in "
-        "`dashboard/config.py`: stress-calibration range, new-center capacity uplift, "
-        "prevention efficacy, triage/access elasticity, and all 5-year package costs. "
-        "No external financial quotes or causal intervention effects are supplied; "
-        "replace these assumptions with validated local inputs before investment decisions."
+        "District-month visit volumes, environmental encounter components and nominal capacity "
+        "come from the source panel. Prevention efficacy, new-center capacity uplift, triage "
+        "response curve, pressure calibration and 5-year package costs are configurable synthetic "
+        "assumptions in `dashboard/config.py`, not measured causal effects or supplier quotations. "
+        "The policy score is a decision-support heuristic, not a validated economic appraisal. "
+        "Validate coefficients locally before using results for investment decisions."
     )
