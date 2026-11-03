@@ -64,12 +64,16 @@ EXPERIMENTS = {
 
 DISTRICT_ALIAS_PREFIX = "D"
 DISTRICT_ALIAS_WIDTH = 2
+<<<<<<< HEAD
 DISTRICT_COLUMN = "district_name"
 DISTRICT_KEY_COLUMN = "district_key"
 DISTRICT_LABEL_COLUMN = "district_label"
 # What the dashboard shows for a district: "name" -> the real district_name (default),
 # "alias" -> the old D01, D02, ... labels.
 DISTRICT_DISPLAY_MODE = "name"
+=======
+DISTRICT_COLUMN = "district_key"
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
 MONTH_COLUMN = "month"
 
 KPI_REGISTRY = {
@@ -125,18 +129,28 @@ FINANCIAL_ASSUMPTIONS = {
     "population_growth_min_pct": -10,
     "population_growth_max_pct": 50,
     "default_population_growth_pct": 20,
+<<<<<<< HEAD
     "prevention_reach_max_pct": 40,
     "default_prevention_reach_pct": 20,
+=======
+    "prevention_reach_max_pct": 30,
+    "default_prevention_reach_pct": 10,
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     "access_improvement_min_minutes": -15,
     "access_improvement_max_minutes": 0,
     "default_access_improvement_minutes": -5,
     "new_center_capacity_pct": 35.0,
+<<<<<<< HEAD
     # Scenario assumptions, not empirically measured intervention effects.
     "prevention_efficacy": 0.35,
     "triage_capacity_gain_max": 0.35,
     "triage_capacity_half_saturation_minutes": 6.0,
     "center_allocation_min_factor": 0.75,
     "center_allocation_max_factor": 1.25,
+=======
+    "prevention_efficacy": 0.20,
+    "triage_capacity_gain_per_minute": 0.02,
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     "calibrated_pressure_min": 0.75,
     "calibrated_pressure_max": 1.35,
     "baseline_window_months": 6,
@@ -153,4 +167,8 @@ SCENARIO_PACKAGES = {
     "B — Expand existing capacity": "capacity",
     "C — Transport + triage access": "access",
     "D — Prevention only": "prevention",
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e

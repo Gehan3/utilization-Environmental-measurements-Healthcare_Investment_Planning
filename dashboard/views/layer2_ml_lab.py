@@ -1,11 +1,18 @@
 """Triple-benchmark diagnostics, holdout audit, and leakage inspection."""
+<<<<<<< HEAD
+=======
+
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
 from __future__ import annotations
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+<<<<<<< HEAD
 from ..config import DISTRICT_COLUMN
+=======
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
 from dashboard.config import EXPERIMENTS
 from dashboard.data_loader import district_alias, model_artifact_summary
 
@@ -112,6 +119,7 @@ def _render_holdout(artifacts: dict[str, dict[str, pd.DataFrame]]) -> None:
         return
     models = sorted(predictions["model"].unique())
     model = st.selectbox("Model family / candidate", models, key="holdout_model")
+<<<<<<< HEAD
     
     # استخدام DISTRICT_COLUMN بدلاً من district_key الثابت
     districts = sorted(predictions[DISTRICT_COLUMN].unique())
@@ -123,12 +131,27 @@ def _render_holdout(artifacts: dict[str, dict[str, pd.DataFrame]]) -> None:
     )
     selected = predictions.loc[
         predictions["model"].eq(model) & predictions[DISTRICT_COLUMN].eq(district)
+=======
+    districts = sorted(predictions["district_key"].unique())
+    district = st.selectbox(
+        "District",
+        districts,
+        format_func=lambda value: f"{district_alias(value, districts)} ({value})",
+        key="holdout_district",
+    )
+    selected = predictions.loc[
+        predictions["model"].eq(model) & predictions["district_key"].eq(district)
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     ].sort_values("month")
     if selected.empty:
         st.info("No prediction rows match the selected filters.")
         return
     selected = selected.copy()
+<<<<<<< HEAD
     selected["District"] = selected[DISTRICT_COLUMN]
+=======
+    selected["District"] = selected["district_key"]
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     long = selected.melt(
         id_vars=["month", "District"],
         value_vars=["actual_value", "predicted_value"],
@@ -151,6 +174,28 @@ def _render_holdout(artifacts: dict[str, dict[str, pd.DataFrame]]) -> None:
     st.dataframe(selected, width="stretch", hide_index=True)
 
 
+<<<<<<< HEAD
+=======
+def _render_exclusions(artifacts: dict[str, dict[str, pd.DataFrame]]) -> None:
+    st.subheader("Feature exclusion & leakage audit")
+    experiment_name = st.selectbox(
+        "Exclusion log", list(EXPERIMENTS), key="exclusion_experiment"
+    )
+    exclusions = artifacts[experiment_name]["exclusions"]
+    if exclusions.empty:
+        st.warning("Feature-exclusion log is not available.")
+        return
+    search = st.text_input("Search columns, dtypes, or justifications")
+    filtered = exclusions.copy()
+    if search:
+        matches = filtered.astype(str).apply(
+            lambda column: column.str.contains(search, case=False, regex=False)
+        )
+        filtered = filtered.loc[matches.any(axis=1)]
+    st.dataframe(filtered, width="stretch", hide_index=True)
+
+
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
 def render(
     artifacts: dict[str, dict[str, pd.DataFrame]],
     model_artifacts: dict[str, dict[str, object]],
@@ -195,4 +240,8 @@ def render(
 
     _render_feature_evolution(artifacts)
     _render_holdout(artifacts)
+<<<<<<< HEAD
    # _render_exclusions(artifacts)
+=======
+    _render_exclusions(artifacts)
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e

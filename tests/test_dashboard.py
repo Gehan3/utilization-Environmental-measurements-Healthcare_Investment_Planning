@@ -69,9 +69,15 @@ class DashboardSmokeTests(unittest.TestCase):
     def test_loads_panel_and_all_benchmark_artifact_schemas(self) -> None:
         panel = load_panel()
         self.assertEqual(len(panel), 315)
+<<<<<<< HEAD
         self.assertTrue({"district_name", "month"}.issubset(panel.columns))
         self.assertFalse(validate_panel_schema(panel))
         self.assertEqual(panel["district_name"].nunique(), 15)
+=======
+        self.assertTrue({"district_key", "month"}.issubset(panel.columns))
+        self.assertFalse(validate_panel_schema(panel))
+        self.assertEqual(panel["district_key"].nunique(), 15)
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
         artifacts = load_experiment_artifacts()
         self.assertEqual(set(artifacts), set(EXPERIMENTS))
         for experiment in artifacts.values():
@@ -79,7 +85,11 @@ class DashboardSmokeTests(unittest.TestCase):
             self.assertFalse(experiment["predictions"].empty)
             self.assertFalse(experiment["importance"].empty)
             self.assertTrue(
+<<<<<<< HEAD
                 {"actual_value", "predicted_value", "district_name", "month"}.issubset(
+=======
+                {"actual_value", "predicted_value", "district_key", "month"}.issubset(
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
                     experiment["predictions"].columns
                 )
             )
@@ -136,7 +146,11 @@ class DashboardSmokeTests(unittest.TestCase):
             "access_improvement_minutes": -5,
             "budget_limit_m_egp": 45,
         }
+<<<<<<< HEAD
         target = [calibrated["district_name"].iloc[0]]
+=======
+        target = [calibrated["district_key"].iloc[0]]
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
         first = compare_scenarios(calibrated, settings, target)
         second = compare_scenarios(calibrated, settings, target)
         pd.testing.assert_frame_equal(first, second)

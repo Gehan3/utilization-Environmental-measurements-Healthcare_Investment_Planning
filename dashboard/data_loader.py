@@ -10,13 +10,20 @@ import pandas as pd
 import streamlit as st
 
 from dashboard.config import (
+<<<<<<< HEAD
     DISTRICT_COLUMN,
     DISTRICT_KEY_COLUMN,
     DISTRICT_LABEL_COLUMN,
+=======
+    DISTRICT_ALIAS_PREFIX,
+    DISTRICT_ALIAS_WIDTH,
+    DISTRICT_COLUMN,
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     EXPERIMENTS,
     MONTH_COLUMN,
     PANEL_PATH,
 )
+<<<<<<< HEAD
 from dashboard.district_utils import (
     build_district_lookup,
     clean_district_key,
@@ -29,20 +36,29 @@ from dashboard.district_utils import (
 
 # Columns that may hold a district identifier in a prediction file, in order of preference.
 DISTRICT_SOURCE_COLUMNS = ("district_name", "district_key", "district_id", "district")
+=======
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
 
 
 @st.cache_data(show_spinner=False)
 def load_panel(path: str | Path = PANEL_PATH) -> pd.DataFrame:
     """Load the panel, normalize its key fields, and validate its structural schema."""
     panel = pd.read_csv(path, encoding="utf-8-sig")
+<<<<<<< HEAD
     panel.columns = [str(column).strip() for column in panel.columns]
+=======
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     missing = {DISTRICT_COLUMN, MONTH_COLUMN}.difference(panel.columns)
     if missing:
         raise ValueError(f"Panel is missing required key columns: {sorted(missing)}")
     panel[MONTH_COLUMN] = pd.to_datetime(panel[MONTH_COLUMN], errors="raise")
+<<<<<<< HEAD
     panel[DISTRICT_COLUMN] = panel[DISTRICT_COLUMN].map(clean_district_name)
     if (panel[DISTRICT_COLUMN] == "").any():
         raise ValueError("Panel contains rows with a blank district_name.")
+=======
+    panel[DISTRICT_COLUMN] = panel[DISTRICT_COLUMN].astype(str).str.strip()
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     if panel.duplicated([DISTRICT_COLUMN, MONTH_COLUMN]).any():
         raise ValueError("Panel contains duplicate district-month keys.")
     return panel.sort_values([MONTH_COLUMN, DISTRICT_COLUMN]).reset_index(drop=True)
@@ -81,6 +97,7 @@ def validate_panel_schema(panel: pd.DataFrame) -> list[str]:
         observations.append(
             f"Expected 21 monthly timestamps; found {panel[MONTH_COLUMN].nunique()}."
         )
+<<<<<<< HEAD
     if panel[DISTRICT_COLUMN].str.fullmatch(r"\d+").any():
         observations.append("Some district_name values look like numeric IDs, not names.")
     if DISTRICT_KEY_COLUMN in panel.columns:
@@ -162,11 +179,60 @@ def load_experiment_artifacts(
         except Exception:  # panel unavailable: names are kept as they appear in the files
             panel = None
     lookup = build_district_lookup(panel) if panel is not None else {}
+=======
+    return observations
+
+
+def district_alias(district_key: object, ordered_districts: list[str]) -> str:
+    """Map observed district identifiers to D01...Dnn without assuming identifier values."""
+    normalized = str(district_key)
+    try:
+        ordinal = ordered_districts.index(normalized) + 1
+    except ValueError:
+        return normalized
+    return f"{DISTRICT_ALIAS_PREFIX}{ordinal:0{DISTRICT_ALIAS_WIDTH}d}"
+
+
+def with_district_aliases(panel: pd.DataFrame) -> pd.DataFrame:
+    ordered = sorted(panel[DISTRICT_COLUMN].astype(str).unique())
+    result = panel.copy()
+    result["district_alias"] = result[DISTRICT_COLUMN].map(
+        lambda value: district_alias(value, ordered)
+    )
+    return result
+
+
+def normalize_prediction_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Find actual/prediction fields by their names, not fixed CSV positions."""
+    if frame.empty:
+        return frame.copy()
+    actual_candidates = [column for column in frame if column.startswith("actual_")]
+    predicted_candidates = [column for column in frame if column.startswith("predicted_")]
+    if not actual_candidates or not predicted_candidates:
+        raise ValueError("Prediction artifact must contain actual_* and predicted_* columns.")
+    actual_column = actual_candidates[0]
+    predicted_column = predicted_candidates[0]
+    normalized = frame.copy()
+    normalized["actual_value"] = pd.to_numeric(normalized[actual_column], errors="raise")
+    normalized["predicted_value"] = pd.to_numeric(
+        normalized[predicted_column], errors="raise"
+    )
+    normalized["month"] = pd.to_datetime(normalized["month"], errors="raise")
+    normalized["district_key"] = normalized["district_key"].astype(str)
+    return normalized
+
+
+def load_experiment_artifacts() -> dict[str, dict[str, pd.DataFrame]]:
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     return {
         name: {
             "metrics": load_csv_artifact(config["metrics"]),
             "predictions": normalize_prediction_columns(
+<<<<<<< HEAD
                 load_csv_artifact(config["predictions"]), lookup
+=======
+                load_csv_artifact(config["predictions"])
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
             ),
             "importance": load_csv_artifact(config["importance"]),
             "exclusions": load_csv_artifact(config["exclusions"]),
@@ -214,4 +280,8 @@ def model_artifact_summary(
                     "Status": "Loaded" if model is not None else "Missing",
                 }
             )
+<<<<<<< HEAD
     return pd.DataFrame(rows)
+=======
+    return pd.DataFrame(rows)
+>>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
