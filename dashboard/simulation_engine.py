@@ -8,10 +8,13 @@ import numpy as np
 import pandas as pd
 
 from dashboard.config import (
+    DISTRICT_KEY_COLUMN,
+    DISTRICT_LABEL_COLUMN,
     FINANCIAL_ASSUMPTIONS,
     MONTH_COLUMN,
     SCENARIO_PACKAGES,
 )
+from dashboard.district_utils import clean_district_name, targeted_mask
 
 
 def derive_baseline_pressure(
@@ -20,7 +23,7 @@ def derive_baseline_pressure(
 ) -> pd.DataFrame:
     """Build a district baseline from the latest available six-month monthly means."""
     required = {
-        "district_key",
+        "district_name",
         MONTH_COLUMN,
         "pc_visits_demand",
         "pc_effective_capacity",
@@ -38,6 +41,7 @@ def derive_baseline_pressure(
     if recent.empty:
         raise ValueError("No rows available for the simulation baseline window.")
 
+    recent["district_name"] = recent["district_name"].map(clean_district_name)
     recent["environmental_demand"] = recent[
         [
             "pw_waterborne_visits_total",
@@ -45,14 +49,15 @@ def derive_baseline_pressure(
             "p3_heat_related_visits",
         ]
     ].sum(axis=1)
-    baseline = (
-        recent.groupby("district_key", as_index=False)
-        .agg(
-            demand=("pc_visits_demand", "mean"),
-            nominal_capacity=("pc_effective_capacity", "mean"),
-            environmental_demand=("environmental_demand", "mean"),
-        )
-    )
+    aggregations = {
+        "demand": ("pc_visits_demand", "mean"),
+        "nominal_capacity": ("pc_effective_capacity", "mean"),
+        "environmental_demand": ("environmental_demand", "mean"),
+    }
+    if DISTRICT_KEY_COLUMN in recent.columns:
+        aggregations[DISTRICT_KEY_COLUMN] = (DISTRICT_KEY_COLUMN, "first")
+    baseline = recent.groupby("district_name", as_index=False).agg(**aggregations)
+    baseline[DISTRICT_LABEL_COLUMN] = baseline["district_name"]
     if (baseline["nominal_capacity"] <= 0).any():
         raise ValueError("Effective capacity must be positive in every district.")
     baseline["environmental_share"] = (
@@ -89,7 +94,12 @@ def derive_baseline_pressure(
     else:
         raise ValueError(f"Unknown capacity calibration mode: {calibration_mode!r}")
 
-    return baseline.sort_values("district_key").reset_index(drop=True)
+    if DISTRICT_KEY_COLUMN in baseline.columns:  # natural order (R1, R2, ...) instead of Arabic alphabetical
+        baseline["_order"] = pd.to_numeric(baseline[DISTRICT_KEY_COLUMN], errors="coerce")
+        baseline = baseline.sort_values(["_order", "district_name"]).drop(columns="_order")
+    else:
+        baseline = baseline.sort_values("district_name")
+    return baseline.reset_index(drop=True)
 
 
 def _scenario_cost(package: str, settings: Mapping[str, float]) -> float:
@@ -131,8 +141,8 @@ def simulate_policy_package(
     if package not in set(SCENARIO_PACKAGES.values()):
         raise ValueError(f"Unknown scenario package: {package!r}")
     result = baseline.copy()
-    targeted = set(str(value) for value in targeted_districts)
-    applies = result["district_key"].astype(str).isin(targeted)
+    # Targets may be district names, district keys or legacy D01 aliases; unmatched input raises.
+    applies = targeted_mask(result, targeted_districts)
 
     result["scenario_demand"] = result["demand"].astype(float)
     result["scenario_capacity"] = result["effective_capacity"].astype(float)

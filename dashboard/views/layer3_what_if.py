@@ -66,8 +66,8 @@ def _scenario_controls(districts: list[str]) -> tuple[dict[str, float], str, lis
             districts,
             default=districts[:1],
             format_func=lambda value: with_district_aliases(
-                pd.DataFrame({"district_key": districts})
-            ).set_index("district_key").loc[value, "district_alias"]
+                pd.DataFrame({"district_name": districts})
+            ).set_index("district_name").loc[value, "district_alias"]
             + f" ({value})",
         )
         st.form_submit_button("Run simulation", type="primary")
@@ -86,17 +86,17 @@ def _pressure_chart(
     scenario: pd.DataFrame,
     calibration_mode: str,
 ) -> None:
-    baseline_plot = baseline[["district_key", "baseline_pressure"]].rename(
+    baseline_plot = baseline[["district_name", "baseline_pressure"]].rename(
         columns={"baseline_pressure": "Pressure"}
     )
     baseline_plot["Series"] = "Baseline"
-    scenario_plot = scenario[["district_key", "scenario_pressure"]].rename(
+    scenario_plot = scenario[["district_name", "scenario_pressure"]].rename(
         columns={"scenario_pressure": "Pressure"}
     )
     scenario_plot["Series"] = "Active scenario"
     chart_data = pd.concat([baseline_plot, scenario_plot], ignore_index=True)
-    aliases = with_district_aliases(baseline[["district_key"]].drop_duplicates())
-    chart_data = chart_data.merge(aliases, on="district_key", how="left")
+    aliases = with_district_aliases(baseline[["district_name"]].drop_duplicates())
+    chart_data = chart_data.merge(aliases, on="district_name", how="left")
     figure = px.bar(
         chart_data,
         x="district_alias",
@@ -155,7 +155,7 @@ def render(panel: pd.DataFrame) -> None:
         st.error(f"Cannot run the policy simulation: {error}")
         return
 
-    districts = baseline["district_key"].astype(str).tolist()
+    districts = baseline["district_name"].astype(str).tolist()
     settings, active_package, targets = _scenario_controls(districts)
     if not targets:
         st.warning("Select at least one target district to run a policy scenario.")

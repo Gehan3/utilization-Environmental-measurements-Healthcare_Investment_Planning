@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-KEYS = ["district_key", "month"]
+KEYS = ["district_name", "month"]
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = SCRIPT_DIR / "Data" / "Raw data"
 DEFAULT_OUT_DIR = SCRIPT_DIR / "Data" / "Linked data"
@@ -92,15 +92,15 @@ def load(path, **kw):
 
 
 def normalize_keys(df, name, monthly=True):
-    """district_key -> int, month -> 'YYYY-MM-01' text, so every table joins on identical keys."""
-    need = ["district_key"] + (["month"] if monthly else [])
+    """district_name -> int, month -> 'YYYY-MM-01' text, so every table joins on identical keys."""
+    need = ["district_name"] + (["month"] if monthly else [])
     lost = [c for c in need if c not in df.columns]
     if lost:
         sys.exit(f"{name}: missing key column(s) {lost}. Columns found: {list(df.columns)}")
-    df["district_key"] = pd.to_numeric(df.district_key, errors="coerce")
-    if df.district_key.isna().any():
-        sys.exit(f"{name}: {int(df.district_key.isna().sum())} rows have a non-numeric or empty district_key")
-    df["district_key"] = df.district_key.astype(int)
+    df["district_name"] = pd.to_numeric(df.district_name, errors="coerce")
+    if df.district_name.isna().any():
+        sys.exit(f"{name}: {int(df.district_name.isna().sum())} rows have a non-numeric or empty district_name")
+    df["district_name"] = df.district_name.astype(int)
     if monthly:
         df["month"] = pd.to_datetime(df.month).dt.strftime("%Y-%m-01")
     return df
@@ -108,8 +108,8 @@ def normalize_keys(df, name, monthly=True):
 
 def prepare_facilities(fac):
     """Maps facility column names to the expected ones; one row = one center when no count column exists."""
-    if "district_key" not in fac.columns:
-        sys.exit(f"{FACILITIES_FILE}: no district_key column. Columns found: {list(fac.columns)}")
+    if "district_name" not in fac.columns:
+        sys.exit(f"{FACILITIES_FILE}: no district_name column. Columns found: {list(fac.columns)}")
     for target, names in FACILITY_ALIASES.items():
         hit = next((n for n in names if n in fac.columns), None)
         if hit and hit != target:
@@ -123,10 +123,10 @@ def prepare_facilities(fac):
     if "healthcare_centers" not in fac.columns:
         print(f"  {FACILITIES_FILE}: no centers column, counting each row as one center")
         fac["healthcare_centers"] = 1
-    n_bad = fac.district_key.isna().sum()
+    n_bad = fac.district_name.isna().sum()
     if n_bad:
-        print(f"  {FACILITIES_FILE}: dropping {int(n_bad)} facilities with no district_key")
-        fac = fac[fac.district_key.notna()].copy()
+        print(f"  {FACILITIES_FILE}: dropping {int(n_bad)} facilities with no district_name")
+        fac = fac[fac.district_name.notna()].copy()
     fac = normalize_keys(fac, FACILITIES_FILE, monthly=False)
     fac["fclass"] = fac.fclass.astype(str).str.strip().str.lower()
     used = PRIMARY_CARE_CLASSES + HOSPITAL_CLASSES
@@ -137,9 +137,9 @@ def prepare_facilities(fac):
 
 
 def check_panel(name, df, expect_rows=None):
-    """Checks that (district_key, month) is a unique key and no district is missing."""
+    """Checks that (district_name, month) is a unique key and no district is missing."""
     dup = df.duplicated(KEYS).sum()
-    n_d, n_m = df.district_key.nunique(), df.month.nunique()
+    n_d, n_m = df.district_name.nunique(), df.month.nunique()
     status = "OK" if dup == 0 else f"!! {dup} duplicate rows"
     print(f"  {name:<28} rows={len(df):>4}  districts={n_d}  months={n_m}  {status}")
     if dup:
@@ -165,7 +165,7 @@ def build_events(cal, districts, months):
             if m not in months:
                 continue
             for d in targets:
-                rows.append(dict(district_key=d, month=m.strftime("%Y-%m-%d"),
+                rows.append(dict(district_name=d, month=m.strftime("%Y-%m-%d"),
                                  event_id=e.event_id, event_type=e.event_type,
                                  hit_directly=(d in named) or (not is_all),
                                  affects_pillars=e.affects_pillars))
@@ -204,12 +204,12 @@ def weighted_index(parts):
 
 def annual_growth(m, col):
     """Annual growth in %: year-over-year when 12 months of history exist, else annualised month-over-month.
-    Expects m sorted by district_key, month with a default index."""
-    g = m.groupby("district_key")[col]
+    Expects m sorted by district_name, month with a default index."""
+    g = m.groupby("district_name")[col]
     yoy = m[col] / g.shift(12) - 1
     mom = (m[col] / g.shift(1)) ** 12 - 1
     out = 100 * yoy.fillna(mom)
-    return out.groupby(m.district_key).bfill()
+    return out.groupby(m.district_name).bfill()
 
 
 def level1_kpis(m):
@@ -329,15 +329,15 @@ def main():
     if wx.month.duplicated().any():
         sys.exit("weather_monthly.csv: month is not unique (one row per month expected)")
     prof = normalize_keys(prof, "district profile", monthly=False)
-    if prof.district_key.duplicated().any():
-        sys.exit("district_population_profile.csv: district_key is not unique")
+    if prof.district_name.duplicated().any():
+        sys.exit("district_population_profile.csv: district_name is not unique")
     fac = prepare_facilities(fac)
 
     # Same period for all tables: Jan 2025 -> Sep 2026
     pop = pop[pop.month <= "2026-09-01"].copy()
 
     # ---------- 2) Key checks ----------
-    print("Key check (district_key + month):")
+    print("Key check (district_name + month):")
     for n, df in [("population", pop), ("pw water", pw), ("p2 waste", p2),
                   ("p3 air/health", p3), ("p4 service requests", p4)]:
         check_panel(n, df, expect_rows=315)
@@ -346,18 +346,18 @@ def main():
         miss = base - set(map(tuple, df[KEYS].values))
         if miss:
             sys.exit(f"{n}: missing {len(miss)} rows compared to population")
-    known = set(prof.district_key)
-    bad = set(fac.district_key) - known
+    known = set(prof.district_name)
+    bad = set(fac.district_name) - known
     if bad:
         sys.exit(f"Facilities in unknown districts: {bad}")
     print("  All tables match on the same 315 rows and every facility has a district.\n")
 
     # ---------- 3) Healthcare capacity (static per district) ----------
     pc = (fac[fac.fclass.isin(PRIMARY_CARE_CLASSES)]
-          .groupby("district_key").agg(pc_centers=("healthcare_centers", "sum"),
+          .groupby("district_name").agg(pc_centers=("healthcare_centers", "sum"),
                                        pc_capacity_visits=("healthcare_capacity", "sum")))
     hp = (fac[fac.fclass.isin(HOSPITAL_CLASSES)]
-          .groupby("district_key").agg(hospital_centers=("healthcare_centers", "sum"),
+          .groupby("district_name").agg(hospital_centers=("healthcare_centers", "sum"),
                                        hospital_capacity_visits=("healthcare_capacity", "sum")))
     cap = pc.join(hp, how="outer").fillna(0).reset_index()
     cap["pc_effective_capacity"] = cap.pc_capacity_visits + HOSP_OPD_SHARE * cap.hospital_capacity_visits
@@ -395,16 +395,16 @@ def main():
                  .rename("event_flags").reset_index())
     else:
         flags = pd.DataFrame(columns=KEYS + ["event_flags"])
-    m = m.merge(flags, on=KEYS, how="left").merge(cap, on="district_key", how="left")
+    m = m.merge(flags, on=KEYS, how="left").merge(cap, on="district_name", how="left")
     m["event_flags"] = m.event_flags.fillna("")
-    cap_cols = [c for c in cap.columns if c != "district_key"]
-    no_cap = sorted(m.loc[m.pc_effective_capacity.fillna(0) == 0, "district_key"].unique())
+    cap_cols = [c for c in cap.columns if c != "district_name"]
+    no_cap = sorted(m.loc[m.pc_effective_capacity.fillna(0) == 0, "district_name"].unique())
     if no_cap:
         print(f"  !! districts with no primary-care capacity (CPR left empty): {no_cap}")
     m[cap_cols] = m[cap_cols].fillna(0)
     extra = [c for c in PROFILE_OPTIONAL if c in prof.columns]
     if extra:
-        m = m.merge(prof[["district_key"] + extra], on="district_key", how="left")
+        m = m.merge(prof[["district_name"] + extra], on="district_name", how="left")
     m = m.sort_values(KEYS).reset_index(drop=True)
 
     # ---------- 5) Health indicators (link between demand and capacity) ----------
@@ -431,12 +431,12 @@ def main():
                            right=False, labels=["Low", "Moderate", "High"])                         # EI2
     contrib = pd.DataFrame({k: m[k] * w for k, w in ESI_WEIGHTS.items()})
     m["esi_dominant_stressor"] = contrib.fillna(-1).idxmax(axis=1).map(ESI_NAMES)                    # EI3
-    by_d = m.groupby("district_key").environmental_stress_index
+    by_d = m.groupby("district_name").environmental_stress_index
     m["esi_trend_12m"] = m.environmental_stress_index - by_d.shift(12)                               # EI4
     m["esi_volatility_12m"] = by_d.transform(lambda x: x.rolling(12, min_periods=6).std())           # EI5
 
     total = m.total_visits_demand.replace(0, np.nan)
-    m["hd2_demand_change_pct"] = 100 * (total / m.groupby("district_key").total_visits_demand.shift(1) - 1)
+    m["hd2_demand_change_pct"] = 100 * (total / m.groupby("district_name").total_visits_demand.shift(1) - 1)
     m["hd3_resp_share_pct"] = 100 * m.p3_respiratory_visits_total / total
     m["hd4_waterborne_share_pct"] = 100 * m.pw_waterborne_visits_total / total
     # HD5 proxy until the Module 2 counterfactual exists: share of environment-sensitive visits
@@ -467,9 +467,9 @@ def main():
     m["commercial_attractiveness_score"] = weighted_index(parts)
 
     # Residential attractiveness (closed loop): base + (100-ESI) + service need + healthcare service quality
-    y26 = (m[m.month >= "2026-01-01"].groupby("district_key")
+    y26 = (m[m.month >= "2026-01-01"].groupby("district_name")
            .agg(esi0=("environmental_stress_index", "mean"), need0=("p4_service_need_index", "mean")))
-    m = m.merge(y26, on="district_key").merge(prof[["district_key", "base_attractiveness"]], on="district_key")
+    m = m.merge(y26, on="district_nam").merge(prof[["district_name", "base_attractiveness"]], on="district_name")
     m["attractiveness_index_v2"] = np.clip(
         m.base_attractiveness - 0.30 * (m.environmental_stress_index - m.esi0) / 100
         - 0.15 * (m.p4_service_need_index - m.need0) / 100 + 0.30 * (m.service_quality - 1), 0, 1)

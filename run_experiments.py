@@ -174,7 +174,7 @@ EXP3_POPULATION_EXCLUSIONS = {
     "density_per_km2": "Spatial/population-scale shortcut excluded from predictor matrix",
 }
 EXP3_SHORTCUT_EXCLUSIONS = {
-    "district_key": "Spatial identity shortcut excluded for pure environmental ablation",
+    "district_name": "Spatial identity shortcut excluded for pure environmental ablation",
     "children_pct": "Demographic shortcut excluded for pure environmental ablation",
     "elderly_pct": "Demographic shortcut excluded for pure environmental ablation",
     "need_score": "Composite decision index excluded",
@@ -237,7 +237,7 @@ def make_pipeline(estimator, numeric_features, scale_numeric=False):
     preprocess = ColumnTransformer(
         transformers=[
             ("numeric", Pipeline(numeric_steps), numeric_features),
-            ("district", OneHotEncoder(handle_unknown="ignore"), ["district_key"]),
+            ("district", OneHotEncoder(handle_unknown="ignore"), ["district_name"]),
         ],
         remainder="drop",
     )
@@ -340,7 +340,7 @@ def exclusion_reason(column, dtype):
         return LEAKAGE_REASONS[column]
     if column in LAG_COLUMNS:
         return "Contemporaneous value withheld; only its t-1 lag is modeled"
-    if column == "district_key":
+    if column == "district_name":
         return "Used as a district categorical feature"
     if column == "month":
         return "Used only to create chronological split and calendar features"
@@ -372,7 +372,7 @@ def run_exp1():
     panel = pd.read_csv(INPUT)
 
     required = {
-        "district_key",
+        "district_name",
         "month",
         TARGET,
         "p3_population_exposed",
@@ -383,22 +383,22 @@ def run_exp1():
         raise ValueError(f"Required columns missing from {INPUT}: {missing}")
 
     panel["month"] = pd.to_datetime(panel["month"], errors="raise")
-    panel = panel.sort_values(["month", "district_key"]).reset_index(drop=True)
-    if panel.duplicated(["district_key", "month"]).any():
+    panel = panel.sort_values(["month", "district_name"]).reset_index(drop=True)
+    if panel.duplicated(["district_name", "month"]).any():
         raise ValueError("Input panel has duplicate district-month keys.")
     months = panel["month"].drop_duplicates().sort_values().tolist()
-    districts = sorted(panel["district_key"].unique())
+    districts = sorted(panel["district_name"].unique())
     if len(panel) != 315 or len(months) != 21 or len(districts) != 15:
         raise ValueError(
             f"Expected a 315-row, 15-district, 21-month panel; found "
             f"{len(panel)} rows, {len(districts)} districts, {len(months)} months."
         )
-    if (panel.groupby("month")["district_key"].nunique() != len(districts)).any():
+    if (panel.groupby("month")["district_name"].nunique() != len(districts)).any():
         raise ValueError("Panel is not balanced: at least one month is missing a district.")
 
-    panel["district_key"] = panel["district_key"].astype(str)
+    panel["district_name"] = panel["district_name"].astype(str)
     lagged = (
-        panel.groupby("district_key", sort=False)[LAG_COLUMNS]
+        panel.groupby("district_name", sort=False)[LAG_COLUMNS]
         .shift(1)
         .rename(columns=dict(zip(LAG_COLUMNS, LAG_FEATURES)))
     )
@@ -416,7 +416,7 @@ def run_exp1():
         month_cos=np.cos(2 * np.pi * month_of_year / 12),
     )
 
-    feature_columns = ["district_key", *CALENDAR_FEATURES, *LAG_FEATURES]
+    feature_columns = ["district_name", *CALENDAR_FEATURES, *LAG_FEATURES]
     valid = panel.dropna(subset=[*LAG_FEATURES, TARGET]).copy()
     test_start = months[-6]
     train = valid.loc[valid["month"] < test_start].copy()
@@ -436,7 +436,7 @@ def run_exp1():
 
     EXP1_DATA_DIR.mkdir(parents=True, exist_ok=True)
     EXP1_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    metadata_columns = ["month", "district_key", TARGET]
+    metadata_columns = ["month", "district_name", TARGET]
     train[[*metadata_columns, *feature_columns[1:]]].to_csv(
         EXP1_DATA_DIR / "train.csv", index=False
     )
@@ -529,13 +529,13 @@ def run_exp1():
         prediction_rows.extend(
             {
                 "month": month,
-                "district_key": district,
+                "district_name": district,
                 "model": name,
                 "actual_total_visits": float(actual),
                 "predicted_total_visits": float(predicted),
             }
             for month, district, actual, predicted in zip(
-                test["month"], test["district_key"], y_test, prediction
+                test["month"], test["district_name"], y_test, prediction
             )
         )
 
@@ -873,7 +873,7 @@ def run_exp2():
     source_hash = file_sha256(INPUT)
     panel = pd.read_csv(INPUT)
     required = {
-        "district_key",
+        "district_name",
         "month",
         "residents_registered",
         "event_flags",
@@ -885,11 +885,11 @@ def run_exp2():
         raise ValueError(f"Required Experiment 2 columns missing: {missing}")
 
     panel["month"] = pd.to_datetime(panel["month"], errors="raise")
-    panel = panel.sort_values(["month", "district_key"]).reset_index(drop=True)
-    if panel.duplicated(["district_key", "month"]).any():
+    panel = panel.sort_values(["month", "district_name"]).reset_index(drop=True)
+    if panel.duplicated(["district_name", "month"]).any():
         raise ValueError("Input panel has duplicate district-month keys.")
     months = panel["month"].drop_duplicates().sort_values().tolist()
-    districts = sorted(panel["district_key"].unique())
+    districts = sorted(panel["district_name"].unique())
     if len(panel) != 315 or len(months) != 21 or len(districts) != 15:
         raise ValueError(
             f"Expected 315 rows, 15 districts, 21 months; found "
@@ -906,12 +906,12 @@ def run_exp2():
     event_flags = event_flag_columns(panel)
     event_flag_lags = [f"lag1_{column}" for column in event_flags.columns]
     lagged_environment = (
-        panel.groupby("district_key", sort=False)[EXP2_LAG_COLUMNS]
+        panel.groupby("district_name", sort=False)[EXP2_LAG_COLUMNS]
         .shift(1)
         .rename(columns={column: f"lag1_{column}" for column in EXP2_LAG_COLUMNS})
     )
     lagged_events = (
-        event_flags.groupby(panel["district_key"], sort=False)
+        event_flags.groupby(panel["district_name"], sort=False)
         .shift(1)
         .rename(columns={column: f"lag1_{column}" for column in event_flags.columns})
     )
@@ -933,7 +933,7 @@ def run_exp2():
         *[f"lag1_{column}" for column in EXP2_LAG_COLUMNS],
         *event_flag_lags,
     ]
-    feature_columns = ["district_key", *CALENDAR_FEATURES, *lag_features]
+    feature_columns = ["district_name", *CALENDAR_FEATURES, *lag_features]
     target = "environmental_visits_per_1000_residents"
     valid = panel.dropna(subset=[*lag_features, target]).copy()
     test_start = months[-6]
@@ -959,7 +959,7 @@ def run_exp2():
     EXP2_DATA_DIR.mkdir(parents=True, exist_ok=True)
     EXP2_MODEL_DIR.mkdir(parents=True, exist_ok=True)
     EXP2_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    split_columns = ["month", "district_key", target, *feature_columns[1:]]
+    split_columns = ["month", "district_name", target, *feature_columns[1:]]
     train[split_columns].to_csv(EXP2_DATA_DIR / "train.csv", index=False)
     test[split_columns].to_csv(EXP2_DATA_DIR / "test.csv", index=False)
 
@@ -986,7 +986,7 @@ def run_exp2():
             reason = "Current-month value withheld; only the t-1 lag is modeled"
         elif column == "event_flags":
             reason = "Parsed to binary flags and lagged one month; raw text excluded"
-        elif column == "district_key":
+        elif column == "district_name":
             reason = "Used as district categorical feature"
         elif column == "month":
             reason = "Used for chronological split and calendar features"
@@ -1142,13 +1142,13 @@ def run_exp2():
         prediction_rows.extend(
             {
                 "month": month,
-                "district_key": district,
+                "district_name": district,
                 "model": name,
                 "actual_environmental_visits_per_1000_residents": float(actual),
                 "predicted_environmental_visits_per_1000_residents": float(predicted),
             }
             for month, district, actual, predicted in zip(
-                test["month"], test["district_key"], y_test, predictions
+                test["month"], test["district_name"], y_test, predictions
             )
         )
 
@@ -1511,7 +1511,7 @@ def run_exp3():
     source_hash = file_sha256(INPUT)
     panel = pd.read_csv(INPUT)
     required = {
-        "district_key",
+        "district_name",
         "month",
         "residents_registered",
         "event_flags",
@@ -1525,11 +1525,11 @@ def run_exp3():
         raise ValueError(f"Required Experiment 3 columns missing: {missing}")
 
     panel["month"] = pd.to_datetime(panel["month"], errors="raise")
-    panel = panel.sort_values(["month", "district_key"]).reset_index(drop=True)
-    if panel.duplicated(["district_key", "month"]).any():
+    panel = panel.sort_values(["month", "district_name"]).reset_index(drop=True)
+    if panel.duplicated(["district_name", "month"]).any():
         raise ValueError("Input panel has duplicate district-month keys.")
     months = panel["month"].drop_duplicates().sort_values().tolist()
-    districts = sorted(panel["district_key"].unique())
+    districts = sorted(panel["district_name"].unique())
     if len(panel) != 315 or len(months) != 21 or len(districts) != 15:
         raise ValueError(
             f"Expected 315 rows, 15 districts, 21 months; found "
@@ -1551,18 +1551,18 @@ def run_exp3():
     event_flags = event_flag_columns(panel)
     event_lag_columns = [f"lag1_{column}" for column in event_flags.columns]
     lagged_physical = (
-        panel.groupby("district_key", sort=False)[EXP3_PHYSICAL_COLUMNS]
+        panel.groupby("district_name", sort=False)[EXP3_PHYSICAL_COLUMNS]
         .shift(1)
         .rename(columns={column: f"lag1_{column}" for column in EXP3_PHYSICAL_COLUMNS})
     )
     lagged_events = (
-        event_flags.groupby(panel["district_key"], sort=False)
+        event_flags.groupby(panel["district_name"], sort=False)
         .shift(1)
         .rename(columns={column: f"lag1_{column}" for column in event_flags.columns})
     )
     panel = pd.concat([panel, lagged_physical, lagged_events], axis=1).copy()
     feature_columns = [*EXP3_LAG_FEATURES, *event_lag_columns]
-    if any(column in {"district_key", "children_pct", "elderly_pct", "month_index", "month_sin", "month_cos"} for column in feature_columns):
+    if any(column in {"district_name", "children_pct", "elderly_pct", "month_index", "month_sin", "month_cos"} for column in feature_columns):
         raise AssertionError("Experiment 3 feature space contains a prohibited shortcut.")
     if any(column not in {f"lag1_{name}" for name in [*EXP3_PHYSICAL_COLUMNS, *event_flags.columns]} for column in feature_columns):
         raise AssertionError("Experiment 3 features must be lagged physical or event variables.")
@@ -1591,7 +1591,7 @@ def run_exp3():
     EXP3_DATA_DIR.mkdir(parents=True, exist_ok=True)
     EXP3_MODEL_DIR.mkdir(parents=True, exist_ok=True)
     EXP3_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    split_columns = ["month", "district_key", target, *feature_columns]
+    split_columns = ["month", "district_name", target, *feature_columns]
     train[split_columns].to_csv(EXP3_DATA_DIR / "train.csv", index=False)
     test[split_columns].to_csv(EXP3_DATA_DIR / "test.csv", index=False)
 
@@ -1635,7 +1635,7 @@ def run_exp3():
             reason = "Current-month physical value withheld; only the t-1 lag is modeled"
         elif column == "event_flags":
             reason = "Raw text parsed to binary event flags; only t-1 flags are modeled"
-        elif column == "district_key":
+        elif column == "district_name":
             reason = EXP3_SHORTCUT_EXCLUSIONS[column]
         elif column == "month":
             reason = "Used only to sort and form fixed chronological partitions"
@@ -1786,13 +1786,13 @@ def run_exp3():
         prediction_rows.extend(
             {
                 "month": month,
-                "district_key": district,
+                "district_name": district,
                 "model": name,
                 "actual_environmental_visits_per_1000_residents": float(actual),
                 "predicted_environmental_visits_per_1000_residents": float(predicted),
             }
             for month, district, actual, predicted in zip(
-                test["month"], test["district_key"], y_test, prediction
+                test["month"], test["district_name"], y_test, prediction
             )
         )
 

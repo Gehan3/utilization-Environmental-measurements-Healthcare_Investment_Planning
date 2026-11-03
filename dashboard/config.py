@@ -64,7 +64,12 @@ EXPERIMENTS = {
 
 DISTRICT_ALIAS_PREFIX = "D"
 DISTRICT_ALIAS_WIDTH = 2
-DISTRICT_COLUMN = "district_key"
+DISTRICT_COLUMN = "district_name"
+DISTRICT_KEY_COLUMN = "district_key"
+DISTRICT_LABEL_COLUMN = "district_label"
+# What the dashboard shows for a district: "name" -> the real district_name (default),
+# "alias" -> the old D01, D02, ... labels.
+DISTRICT_DISPLAY_MODE = "name"
 MONTH_COLUMN = "month"
 
 KPI_REGISTRY = {
