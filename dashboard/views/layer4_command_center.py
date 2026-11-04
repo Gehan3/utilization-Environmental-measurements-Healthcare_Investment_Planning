@@ -10,6 +10,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from dashboard.ui import plotly_chart
 from dashboard.command_center import (
     STATUS_LEVELS,
     district_alerts,
@@ -147,7 +148,7 @@ def _trend(panel: pd.DataFrame, field: str, district: str | None, month: pd.Time
     _mark_month(figure, month)
     figure.update_yaxes(title=None)
     figure.update_xaxes(title=None)
-    st.plotly_chart(_style(figure, height, title or _label(field)), width="stretch")
+    plotly_chart(_style(figure, height, title or _label(field)))
 
 
 def _district_bar(panel: pd.DataFrame, field: str, month: pd.Timestamp, labels: dict[str, str],
@@ -175,7 +176,7 @@ def _district_bar(panel: pd.DataFrame, field: str, month: pd.Timestamp, labels: 
     _add_thresholds(figure, field, horizontal=False)
     _style(figure, max(360, 26 * len(rows) + 90), title or f"{_label(field)} by district")
     figure.update_layout(hovermode="closest")
-    st.plotly_chart(figure, width="stretch")
+    plotly_chart(figure)
 
 
 def _bars_with_line(series: pd.DataFrame, bar_fields: dict[str, str], line_field: str | None,
@@ -194,7 +195,7 @@ def _bars_with_line(series: pd.DataFrame, bar_fields: dict[str, str], line_field
         _add_thresholds(figure, line_field, secondary=True)
     figure.update_layout(barmode="stack" if stacked else "group", yaxis_title=bar_axis)
     _mark_month(figure, month)
-    st.plotly_chart(_style(figure, 360, title), width="stretch")
+    plotly_chart(_style(figure, 360, title))
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +263,7 @@ def _status_grid(alerts: pd.DataFrame, panel: pd.DataFrame, labels: dict[str, st
     figure.update_xaxes(side="top")
     _style(figure, 30 * len(levels) + 90)
     figure.update_layout(hovermode="closest", margin={"l": 10, "r": 10, "t": 30, "b": 10})
-    st.plotly_chart(figure, width="stretch")
+    plotly_chart(figure)
 
 
 def _alert_table(alerts: pd.DataFrame, labels: dict[str, str], district: str | None) -> None:
@@ -310,7 +311,7 @@ def _event_timeline(panel: pd.DataFrame, month: pd.Timestamp) -> None:
     _mark_month(figure, month)
     _style(figure, 26 * log["event_label"].nunique() + 120)
     figure.update_layout(hovermode="closest")
-    st.plotly_chart(figure, width="stretch")
+    plotly_chart(figure)
     selected = log.loc[log[MONTH_COLUMN].eq(month)]
     if not selected.empty:
         items = ", ".join(f"{r.event_label} ({r.districts} districts)" for r in selected.itertuples())
@@ -369,7 +370,7 @@ def _waste_tab(panel: pd.DataFrame, district: str | None, month: pd.Timestamp, l
         figure.update_yaxes(title=None, categoryorder="total ascending")
         _style(figure, 26 * len(rows) + 110, f"Waste composition by district, {month:%b %Y}")
         figure.update_layout(hovermode="closest")
-        st.plotly_chart(figure, width="stretch")
+        plotly_chart(figure)
 
 
 def _air_tab(panel: pd.DataFrame, district: str | None, month: pd.Timestamp, labels: dict[str, str]) -> None:
@@ -384,7 +385,7 @@ def _air_tab(panel: pd.DataFrame, district: str | None, month: pd.Timestamp, lab
             {"p3_pm25_ugm3": "PM2.5", "p3_pm10_ugm3": "PM10", "p3_no2_ugm3": "NO₂", "p3_o3_ugm3": "O₃"})
         figure = px.line(long, x=MONTH_COLUMN, y="µg/m³", color="Pollutant", markers=True, labels={MONTH_COLUMN: ""})
         _mark_month(figure, month)
-        st.plotly_chart(_style(figure, 340, "Pollutant concentrations"), width="stretch")
+        plotly_chart(_style(figure, 340, "Pollutant concentrations"))
     left, right = st.columns(2)
     with left:
         _district_bar(panel, "p3_avg_aqi", month, labels, f"Average AQI by district, {month:%b %Y}",
@@ -412,7 +413,7 @@ def _service_tab(panel: pd.DataFrame, district: str | None, month: pd.Timestamp,
                                     mode="lines+markers", line={"color": TEXT, "width": 2}))
     figure.update_layout(barmode="group")
     _mark_month(figure, month)
-    st.plotly_chart(_style(figure, 360, "Complaints by category"), width="stretch")
+    plotly_chart(_style(figure, 360, "Complaints by category"))
     st.caption("Category counts are shown side by side because they do not always add up to the total in the panel.")
     for column, field in zip(st.columns(3), ["p4_citizen_satisfaction_pct", "p4_sla_breach_pct", "p4_avg_resolution_hours"]):
         with column:
@@ -449,7 +450,7 @@ def _health_tab(panel: pd.DataFrame, district: str | None, month: pd.Timestamp, 
         )
         _style(figure, 26 * len(matrix) + 110, f"Environmental stress components, {month:%b %Y}")
         figure.update_layout(hovermode="closest")
-        st.plotly_chart(figure, width="stretch")
+        plotly_chart(figure)
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from dashboard.ui import plotly_chart
 from dashboard.config import (
     DISTRICT_COLUMN,
     KPI_REGISTRY,
@@ -114,7 +115,7 @@ def _render_time_series(panel: pd.DataFrame, district: str) -> None:
         legend={"orientation": "h", "y": -0.25},
         margin={"t": 25, "b": 90},
     )
-    st.plotly_chart(chart, width="stretch")
+    plotly_chart(chart)
 
 
 def _render_vulnerability(panel: pd.DataFrame) -> None:
@@ -162,7 +163,7 @@ def _render_vulnerability(panel: pd.DataFrame) -> None:
     )
     figure.update_layout(height=max(450, len(district_data) * 28), margin={"t": 20})
     st.caption("Heatmap values are min–max normalized within each indicator across districts.")
-    st.plotly_chart(figure, width="stretch")
+    plotly_chart(figure)
     with st.expander("District indicator averages"):
         display = aliased[[DISTRICT_COLUMN, "district_alias"]].copy()
         display = pd.concat([display, district_data[fields]], axis=1)
@@ -187,7 +188,7 @@ def _render_field_inspector(panel: pd.DataFrame) -> None:
     with left:
         if len(selected) >= 2:
             correlation = numeric[selected].corr()
-            st.plotly_chart(
+            plotly_chart(
                 px.imshow(
                     correlation,
                     text_auto=".2f",
@@ -196,8 +197,7 @@ def _render_field_inspector(panel: pd.DataFrame) -> None:
                     zmax=1,
                     aspect="auto",
                     title="Selected-field correlation",
-                ),
-                width="stretch",
+                )
             )
         else:
             st.info("Select at least two fields to view correlations.")
@@ -205,14 +205,13 @@ def _render_field_inspector(panel: pd.DataFrame) -> None:
         distribution_field = st.selectbox(
             "Distribution field", selected, key="inspector_distribution"
         )
-        st.plotly_chart(
+        plotly_chart(
             px.histogram(
                 panel,
                 x=distribution_field,
                 nbins=30,
                 title=f"Distribution: {distribution_field}",
-            ),
-            width="stretch",
+            )
         )
 
 

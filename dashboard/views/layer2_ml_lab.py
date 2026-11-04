@@ -6,6 +6,7 @@ import plotly.express as px
 import streamlit as st
 
 from ..config import DISTRICT_COLUMN
+from dashboard.ui import plotly_chart
 from dashboard.config import EXPERIMENTS
 from dashboard.data_loader import district_alias, model_artifact_summary
 
@@ -94,7 +95,7 @@ def _render_feature_evolution(
     )
     figure.update_yaxes(matches=None, autorange="reversed")
     figure.update_layout(showlegend=False, margin={"l": 190, "r": 20, "t": 90})
-    st.plotly_chart(figure, width="stretch")
+    plotly_chart(figure)
     st.caption(
         "Importance is held-out predictive association, not causal effect. The ranking "
         "is conditional on each experiment's feature set and saved model."
@@ -147,7 +148,7 @@ def _render_holdout(artifacts: dict[str, dict[str, pd.DataFrame]]) -> None:
         title=f"{EXPERIMENTS[experiment_name]['label']} · {model} · {district}",
         labels={"month": "Month", "Value": "Target value"},
     )
-    st.plotly_chart(figure, width="stretch")
+    plotly_chart(figure)
     st.dataframe(selected, width="stretch", hide_index=True)
 
 

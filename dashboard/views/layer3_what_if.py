@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from dashboard.ui import plotly_chart
 from dashboard.config import FINANCIAL_ASSUMPTIONS, SCENARIO_PACKAGES
 from dashboard.data_loader import with_district_aliases
 from dashboard.simulation_engine import (
@@ -105,7 +106,7 @@ def _pressure_chart(baseline: pd.DataFrame, scenario: pd.DataFrame, calibration_
     )
     figure.add_hline(y=1.0, line_dash="dash", line_color="red", annotation_text="Capacity limit = 1.0")
     figure.update_layout(height=490, legend={"orientation": "h", "y": -0.2})
-    st.plotly_chart(figure, width="stretch")
+    plotly_chart(figure)
 
 
 def _render_calibration_note(baseline: pd.DataFrame, calibration_mode: str) -> None:
@@ -216,7 +217,7 @@ def render(panel: pd.DataFrame) -> None:
     )
     impact_figure.add_vline(x=0, line_dash="dash", line_color="#718096")
     impact_figure.update_layout(height=330, showlegend=True)
-    st.plotly_chart(impact_figure, width="stretch")
+    plotly_chart(impact_figure)
 
     if active_cost > settings["budget_limit_m_egp"]:
         st.error(
