@@ -2,8 +2,6 @@
 
 A smart-city digital twin framework designed for the New Administrative Capital (NAC), Egypt. This project integrates multi-pillar environmental datasets (Water Pollution, Solid Waste, Air Quality, Weather) with demographic profiles and healthcare facility capacities to simulate public health impacts, Clinical Pressure Ratios (CPR), and healthcare investment gaps across districts.
 
-=======
->>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
 
 ## 📁 Repository Structure
 

@@ -64,16 +64,12 @@ EXPERIMENTS = {
 
 DISTRICT_ALIAS_PREFIX = "D"
 DISTRICT_ALIAS_WIDTH = 2
-<<<<<<< HEAD
 DISTRICT_COLUMN = "district_name"
 DISTRICT_KEY_COLUMN = "district_key"
 DISTRICT_LABEL_COLUMN = "district_label"
 # What the dashboard shows for a district: "name" -> the real district_name (default),
 # "alias" -> the old D01, D02, ... labels.
 DISTRICT_DISPLAY_MODE = "name"
-=======
-DISTRICT_COLUMN = "district_key"
->>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
 MONTH_COLUMN = "month"
 
 KPI_REGISTRY = {
@@ -129,28 +125,18 @@ FINANCIAL_ASSUMPTIONS = {
     "population_growth_min_pct": -10,
     "population_growth_max_pct": 50,
     "default_population_growth_pct": 20,
-<<<<<<< HEAD
     "prevention_reach_max_pct": 40,
     "default_prevention_reach_pct": 20,
-=======
-    "prevention_reach_max_pct": 30,
-    "default_prevention_reach_pct": 10,
->>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     "access_improvement_min_minutes": -15,
     "access_improvement_max_minutes": 0,
     "default_access_improvement_minutes": -5,
     "new_center_capacity_pct": 35.0,
-<<<<<<< HEAD
     # Scenario assumptions, not empirically measured intervention effects.
     "prevention_efficacy": 0.35,
     "triage_capacity_gain_max": 0.35,
     "triage_capacity_half_saturation_minutes": 6.0,
     "center_allocation_min_factor": 0.75,
     "center_allocation_max_factor": 1.25,
-=======
-    "prevention_efficacy": 0.20,
-    "triage_capacity_gain_per_minute": 0.02,
->>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
     "calibrated_pressure_min": 0.75,
     "calibrated_pressure_max": 1.35,
     "baseline_window_months": 6,
@@ -167,8 +153,149 @@ SCENARIO_PACKAGES = {
     "B — Expand existing capacity": "capacity",
     "C — Transport + triage access": "access",
     "D — Prevention only": "prevention",
-<<<<<<< HEAD
 }
-=======
+
+
+# ---------------------------------------------------------------------------
+# Layer 4 · City command center
+# ---------------------------------------------------------------------------
+# Alert thresholds are planning assumptions informed by common references (WHO drinking-water
+# and air-quality guidance, US EPA AQI bands, typical utility / municipal service targets).
+# They are NOT legal limits for this city. Tune them here; the dashboard reads nothing else.
+#
+# direction "above": value > watch -> Watch, value > critical -> Critical
+# direction "below": value < watch -> Watch, value < critical -> Critical
+# city: how a city-wide value is built from the 15 districts
+#   "ratio"         -> recomputed from its components (see command_center.CITY_RATIOS)
+#   "sum" / "mean"  -> plain sum or mean across districts
+#   "weighted:<col>"-> mean weighted by <col>
+COMMAND_CENTER_THRESHOLDS = {
+    # Water
+    "pw_nrw_pct": {
+        "pillar": "Water", "label": "Non-revenue water", "unit": "%",
+        "direction": "above", "watch": 25.0, "critical": 35.0, "city": "ratio",
+    },
+    "pw_chlorine_residual_mg_l": {
+        "pillar": "Water", "label": "Chlorine residual", "unit": "mg/L",
+        "direction": "below", "watch": 0.3, "critical": 0.2,
+        "city": "weighted:pw_water_supplied_m3",
+    },
+    "pw_turbidity_ntu": {
+        "pillar": "Water", "label": "Turbidity", "unit": "NTU",
+        "direction": "above", "watch": 1.0, "critical": 5.0,
+        "city": "weighted:pw_water_supplied_m3",
+    },
+    "pw_ecoli_positive_pct": {
+        "pillar": "Water", "label": "E. coli positive samples", "unit": "%",
+        "direction": "above", "watch": 0.0, "critical": 5.0,
+        "city": "weighted:pw_water_supplied_m3",
+    },
+    "pw_water_age_hours": {
+        "pillar": "Water", "label": "Water age", "unit": "h",
+        "direction": "above", "watch": 48.0, "critical": 72.0,
+        "city": "weighted:pw_water_supplied_m3",
+    },
+    "pw_supply_interruption_hours": {
+        "pillar": "Water", "label": "Supply interruption", "unit": "h/month",
+        "direction": "above", "watch": 8.0, "critical": 24.0,
+        "city": "weighted:residents_registered",
+    },
+    # Waste
+    "p2_collection_efficiency_pct": {
+        "pillar": "Waste", "label": "Collection efficiency", "unit": "%",
+        "direction": "below", "watch": 90.0, "critical": 85.0, "city": "ratio",
+    },
+    "p2_bin_hours_ge85_pct": {
+        "pillar": "Waste", "label": "Bin hours ≥85% full", "unit": "%",
+        "direction": "above", "watch": 10.0, "critical": 20.0,
+        "city": "weighted:p2_bins_installed",
+    },
+    # Air & heat
+    "p3_avg_aqi": {
+        "pillar": "Air & heat", "label": "Average AQI", "unit": "",
+        "direction": "above", "watch": 100.0, "critical": 150.0,
+        "city": "weighted:p3_population_exposed",
+    },
+    "p3_pm25_ugm3": {
+        "pillar": "Air & heat", "label": "PM2.5", "unit": "µg/m³",
+        "direction": "above", "watch": 35.0, "critical": 75.0,
+        "city": "weighted:p3_population_exposed",
+    },
+    "heat_days_ge38c": {
+        "pillar": "Air & heat", "label": "Days ≥38 °C", "unit": "days",
+        "direction": "above", "watch": 3.0, "critical": 7.0, "city": "max",
+    },
+    # Citizen service
+    "p4_citizen_satisfaction_pct": {
+        "pillar": "Citizen service", "label": "Citizen satisfaction", "unit": "%",
+        "direction": "below", "watch": 70.0, "critical": 60.0,
+        "city": "weighted:p3_population_exposed",
+    },
+    "p4_sla_breach_pct": {
+        "pillar": "Citizen service", "label": "SLA breaches", "unit": "%",
+        "direction": "above", "watch": 20.0, "critical": 30.0,
+        "city": "weighted:p4_total_complaints",
+    },
+    "p4_complaints_per_1000": {
+        "pillar": "Citizen service", "label": "Complaints per 1,000", "unit": "",
+        "direction": "above", "watch": 20.0, "critical": 40.0, "city": "ratio",
+    },
+    # Health capacity
+    "cpr": {
+        "pillar": "Health capacity", "label": "Primary-care pressure", "unit": "ratio",
+        "direction": "above", "watch": 0.85, "critical": 1.0, "city": "ratio",
+    },
 }
->>>>>>> 64059cf510b061bf07d940f87eb4053e5b7efa1e
+
+# Pillar order, headline indicator (shown on the status card) and accent colour.
+COMMAND_CENTER_PILLARS = {
+    "Water": {"headline": "pw_nrw_pct", "color": "#0D9488"},
+    "Waste": {"headline": "p2_collection_efficiency_pct", "color": "#65A30D"},
+    "Air & heat": {"headline": "p3_avg_aqi", "color": "#7C3AED"},
+    "Citizen service": {"headline": "p4_citizen_satisfaction_pct", "color": "#2563EB"},
+    "Health capacity": {"headline": "cpr", "color": "#DB2777"},
+}
+
+# City-wide aggregation for fields that are charted but have no alert threshold.
+# Fields not listed here and not in COMMAND_CENTER_THRESHOLDS are summed.
+COMMAND_CENTER_CITY_AGGREGATION = {
+    "pw_night_flow_ratio": "weighted:pw_water_supplied_m3",
+    "pw_water_pollution_index": "weighted:pw_water_supplied_m3",
+    "p2_avg_bin_fill_pct": "weighted:p2_bins_installed",
+    "p2_recycling_diversion_pct": "weighted:p2_waste_generated_tons",
+    "p2_odor_pest_risk_index": "weighted:p3_population_exposed",
+    "p3_max_aqi": "max",
+    "p3_pm10_ugm3": "weighted:p3_population_exposed",
+    "p3_no2_ugm3": "weighted:p3_population_exposed",
+    "p3_o3_ugm3": "weighted:p3_population_exposed",
+    "avg_temp_c": "mean",
+    "p4_avg_resolution_hours": "weighted:p4_total_complaints",
+    "need_score": "weighted:residents_registered",
+    "environmental_stress_index": "weighted:residents_registered",
+}
+
+# Which pillar each event flag belongs to (for timeline colours). Unlisted events -> "Other".
+COMMAND_CENTER_EVENT_PILLARS = {
+    "night_flow_anomaly": "Water",
+    "chlorination_failure": "Water",
+    "pipe_burst_campaign": "Water",
+    "sewage_main_failure": "Water",
+    "compound_sewage_heat_failure": "Water",
+    "compound_sewage_waste_failure": "Water",
+    "eid_aladha_waste_overflow": "Waste",
+    "dust_storm": "Air & heat",
+    "major_dust_storm": "Air & heat",
+    "winter_inversion_smog": "Air & heat",
+    "heatwave_jul2025": "Air & heat",
+    "heatwave_aug2026": "Air & heat",
+    "heat_spell": "Air & heat",
+    "heat_tail": "Air & heat",
+    "winter_respiratory_season": "Health capacity",
+}
+
+COMMAND_CENTER_STATUS_COLORS = {
+    "OK": "#0D9488",
+    "Watch": "#D97706",
+    "Critical": "#DC2626",
+    "No data": "#94A3B8",
+}

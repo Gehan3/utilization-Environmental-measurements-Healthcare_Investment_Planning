@@ -11,7 +11,12 @@ from dashboard.data_loader import (
     load_panel,
     validate_panel_schema,
 )
-from dashboard.views import layer1_urban_bi, layer2_ml_lab, layer3_what_if
+from dashboard.views import (
+    layer1_urban_bi,
+    layer2_ml_lab,
+    layer3_what_if,
+    layer4_command_center,
+)
 
 
 st.set_page_config(
@@ -30,6 +35,7 @@ def main() -> None:
             "Layer 1 · Urban intelligence",
             "Layer 2 · ML benchmark lab",
             "Layer 3 · What-if simulation",
+            "Layer 4 · City command center",
         ],
     )
     try:
@@ -57,8 +63,10 @@ def main() -> None:
             st.error(f"Unable to load ML benchmark artifacts: {error}")
             st.stop()
         layer2_ml_lab.render(artifacts, models)
-    else:
+    elif layer.startswith("Layer 3"):
         layer3_what_if.render(panel)
+    else:
+        layer4_command_center.render(panel)
 
 
 if __name__ == "__main__":
