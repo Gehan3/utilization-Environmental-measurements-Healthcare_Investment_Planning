@@ -10,16 +10,14 @@ from dashboard.ui import plotly_chart
 from dashboard.config import FINANCIAL_ASSUMPTIONS, SCENARIO_PACKAGES
 from dashboard.data_loader import with_district_aliases
 from dashboard.simulation_engine import (
+    CALIBRATION_MODES,
+    PRIMARY_CARE_ONLY_MODE,
+    RAW_MODE,
     compare_scenarios,
     derive_baseline_pressure,
     simulate_policy_package,
 )
 
-
-CALIBRATION_MODES = [
-    "Raw nominal capacity",
-    "Peak-surge / stress-calibrated capacity",
-]
 
 
 def _scenario_controls(districts: list[str]) -> tuple[dict[str, float], str, list[str]]:
@@ -110,7 +108,13 @@ def _pressure_chart(baseline: pd.DataFrame, scenario: pd.DataFrame, calibration_
 
 
 def _render_calibration_note(baseline: pd.DataFrame, calibration_mode: str) -> None:
-    if calibration_mode == "Raw nominal capacity":
+    if calibration_mode == PRIMARY_CARE_ONLY_MODE:
+        st.info(
+            "Primary-care-only mode uses `pc_visits_demand / pc_capacity_visits`, excluding the 25% "
+            "hospital share inside `pc_effective_capacity`. Observed range is "
+            f"{baseline['baseline_pressure'].min():.3f}–{baseline['baseline_pressure'].max():.3f}."
+        )
+    elif calibration_mode == RAW_MODE:
         st.info(
             "Raw mode uses source `pc_visits_demand / pc_effective_capacity`; "
             f"observed range is {baseline['baseline_pressure'].min():.3f}–"
@@ -135,7 +139,7 @@ def render(panel: pd.DataFrame) -> None:
         CALIBRATION_MODES,
         horizontal=True,
         index=1,
-        help="Choose source nominal capacity or a clearly labeled stress-calibrated capacity.",
+        help="Source capacity (with hospital share), a stress-calibrated view, or primary-care centers only.",
     )
     try:
         baseline = derive_baseline_pressure(panel, calibration_mode)

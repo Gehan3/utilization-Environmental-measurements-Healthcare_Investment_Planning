@@ -16,6 +16,7 @@ from dashboard.views import (
     layer2_ml_lab,
     layer3_what_if,
     layer4_command_center,
+    layer5_stress_test,
 )
 
 
@@ -36,6 +37,7 @@ def main() -> None:
             "Layer 2 · ML benchmark lab",
             "Layer 3 · What-if simulation",
             "Layer 4 · City command center",
+            "Layer 5 · Crisis & stress testing",
         ],
     )
     try:
@@ -65,8 +67,10 @@ def main() -> None:
         layer2_ml_lab.render(artifacts, models)
     elif layer.startswith("Layer 3"):
         layer3_what_if.render(panel)
-    else:
+    elif layer.startswith("Layer 4"):
         layer4_command_center.render(panel)
+    else:
+        layer5_stress_test.render(panel)
 
 
 if __name__ == "__main__":

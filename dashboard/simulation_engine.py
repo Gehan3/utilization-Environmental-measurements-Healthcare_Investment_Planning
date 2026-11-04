@@ -21,6 +21,18 @@ from dashboard.config import (
 )
 from dashboard.district_utils import clean_district_name, targeted_mask
 
+RAW_MODE = "Raw nominal capacity"
+STRESS_CALIBRATED_MODE = "Peak-surge / stress-calibrated capacity"
+# Primary-care centers only: pc_capacity_visits, without the hospital share that
+# pc_effective_capacity adds (pc_effective_capacity = pc_capacity_visits + 0.25 x hospital_capacity_visits).
+PRIMARY_CARE_ONLY_MODE = "Primary-care only capacity"
+CALIBRATION_MODES = [RAW_MODE, STRESS_CALIBRATED_MODE, PRIMARY_CARE_ONLY_MODE]
+
+
+def capacity_column(calibration_mode: str) -> str:
+    """The panel field used as nominal capacity for a calibration mode."""
+    return "pc_capacity_visits" if calibration_mode == PRIMARY_CARE_ONLY_MODE else "pc_effective_capacity"
+
 
 def _finite_setting(settings: Mapping[str, float], key: str) -> float:
     if key not in settings:
@@ -61,8 +73,9 @@ def derive_baseline_pressure(
     calibration_mode: str = "Peak-surge / stress-calibrated capacity",
 ) -> pd.DataFrame:
     """Build a district baseline from the latest available six-month monthly means."""
+    capacity_field = capacity_column(calibration_mode)
     required = {
-        "district_name", MONTH_COLUMN, "pc_visits_demand", "pc_effective_capacity",
+        "district_name", MONTH_COLUMN, "pc_visits_demand", capacity_field,
         "pw_waterborne_visits_total", "p3_respiratory_visits_total", "p3_heat_related_visits",
     }
     missing = required.difference(panel.columns)
@@ -80,7 +93,7 @@ def derive_baseline_pressure(
     recent["district_name"] = recent["district_name"].map(clean_district_name)
     recent = recent.loc[recent["district_name"].ne("")].copy()
     numeric_fields = [
-        "pc_visits_demand", "pc_effective_capacity", "pw_waterborne_visits_total",
+        "pc_visits_demand", capacity_field, "pw_waterborne_visits_total",
         "p3_respiratory_visits_total", "p3_heat_related_visits",
     ]
     for column in numeric_fields:
@@ -90,7 +103,7 @@ def derive_baseline_pressure(
         raise ValueError(f"Simulation inputs contain missing/non-numeric values in: {bad}")
     if (recent["pc_visits_demand"] < 0).any():
         raise ValueError("Visit demand cannot be negative.")
-    if (recent["pc_effective_capacity"] <= 0).any():
+    if (recent[capacity_field] <= 0).any():
         raise ValueError("Effective capacity must be positive in every source row.")
     if (recent[["pw_waterborne_visits_total", "p3_respiratory_visits_total", "p3_heat_related_visits"]] < 0).any().any():
         raise ValueError("Environmental visit components cannot be negative.")
@@ -100,7 +113,7 @@ def derive_baseline_pressure(
     ].sum(axis=1)
     aggregations = {
         "demand": ("pc_visits_demand", "mean"),
-        "nominal_capacity": ("pc_effective_capacity", "mean"),
+        "nominal_capacity": (capacity_field, "mean"),
         "environmental_demand": ("environmental_demand", "mean"),
     }
     if DISTRICT_KEY_COLUMN in recent.columns:
@@ -120,11 +133,11 @@ def derive_baseline_pressure(
     baseline["eligible_environmental_demand"] = baseline["demand"] * baseline["environmental_share"]
     baseline["raw_pressure"] = baseline["demand"] / baseline["nominal_capacity"]
 
-    if calibration_mode == "Raw nominal capacity":
+    if calibration_mode in {RAW_MODE, PRIMARY_CARE_ONLY_MODE}:
         baseline["baseline_pressure"] = baseline["raw_pressure"]
         baseline["effective_capacity"] = baseline["nominal_capacity"]
         baseline["calibration_factor"] = 1.0
-    elif calibration_mode == "Peak-surge / stress-calibrated capacity":
+    elif calibration_mode == STRESS_CALIBRATED_MODE:
         target_min = float(FINANCIAL_ASSUMPTIONS["calibrated_pressure_min"])
         target_max = float(FINANCIAL_ASSUMPTIONS["calibrated_pressure_max"])
         if target_min <= 0 or target_max < target_min:
@@ -170,6 +183,23 @@ def _scenario_cost(package: str, settings: Mapping[str, float]) -> float:
     else:
         raise ValueError(f"Unknown scenario package: {package!r}")
     return float(cost)
+
+
+def package_cost(package: str, settings: Mapping[str, float] | None = None) -> float:
+    """Public wrapper: 5-year cost of a package (defaults from FINANCIAL_ASSUMPTIONS when settings is None)."""
+    return _scenario_cost(package, settings or default_settings())
+
+
+def default_settings() -> dict[str, float]:
+    """Scenario settings at their FINANCIAL_ASSUMPTIONS defaults."""
+    a = FINANCIAL_ASSUMPTIONS
+    return {
+        "population_growth_pct": float(a["default_population_growth_pct"]),
+        "capacity_expansion_pct": float(a["default_capacity_expansion_pct"]),
+        "prevention_reach_pct": float(a["default_prevention_reach_pct"]),
+        "access_improvement_minutes": float(a["default_access_improvement_minutes"]),
+        "budget_limit_m_egp": float(a["default_budget_m_egp"]),
+    }
 
 
 def _center_allocation_factors(baseline: pd.DataFrame, applies: pd.Series) -> pd.Series:

@@ -13,6 +13,7 @@ import streamlit as st
 from dashboard.ui import plotly_chart
 from dashboard.command_center import (
     STATUS_LEVELS,
+    add_derived_fields,
     district_alerts,
     event_log,
     is_better,
@@ -433,8 +434,10 @@ def _health_tab(panel: pd.DataFrame, district: str | None, month: pd.Timestamp, 
     with left:
         _bars_with_line(series, causes, None, month, "Clinical visits by cause", stacked=True, bar_axis="visits")
     with right:
-        _district_bar(panel, "cpr", month, labels, f"Primary-care pressure, {month:%b %Y}",
-                      extra_hover=["pc_visits_demand", "pc_effective_capacity"])
+        _district_bar(panel, "pc_only_load", month, labels, f"Primary-care-only load, {month:%b %Y}",
+                      extra_hover=["pc_visits_demand", "pc_capacity_visits", "cpr"])
+    st.caption("Primary-care-only load = pc_visits_demand / pc_capacity_visits. The panel's cpr also counts "
+               "25% of hospital capacity, which can hide an overloaded primary-care network.")
     left, right = st.columns(2)
     with left:
         _district_bar(panel, "need_score", month, labels, f"Need score, {month:%b %Y}")
@@ -462,6 +465,7 @@ def render(panel: pd.DataFrame) -> None:
         "Cross-pillar operating picture from the monthly district panel. Alert limits are "
         "configurable planning assumptions in `dashboard/config.py`, not legal standards."
     )
+    panel = add_derived_fields(panel)
     months = sorted(panel[MONTH_COLUMN].dropna().unique())
     if not months:
         st.error("The panel has no valid months.")

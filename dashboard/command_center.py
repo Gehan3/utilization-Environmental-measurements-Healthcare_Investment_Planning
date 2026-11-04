@@ -57,7 +57,31 @@ CITY_RATIOS: dict[str, tuple[tuple[str, ...], Callable[[pd.DataFrame], float]]] 
         ("pc_visits_demand", "pc_effective_capacity"),
         lambda f: _safe_ratio(_sum(f, "pc_visits_demand"), _sum(f, "pc_effective_capacity")),
     ),
+    "pc_only_load": (
+        ("pc_visits_demand", "pc_capacity_visits"),
+        lambda f: _safe_ratio(_sum(f, "pc_visits_demand"), _sum(f, "pc_capacity_visits")),
+    ),
 }
+
+# Fields computed from the panel rather than read from it.
+DERIVED_FIELDS: dict[str, tuple[tuple[str, ...], Callable[[pd.DataFrame], pd.Series]]] = {
+    # Primary-care centers only. cpr divides by pc_effective_capacity, which also counts
+    # 25% of hospital capacity and can hide a primary-care overload (R1: cpr 0.16, this 2.23).
+    "pc_only_load": (
+        ("pc_visits_demand", "pc_capacity_visits"),
+        lambda f: pd.to_numeric(f["pc_visits_demand"], errors="coerce")
+        / pd.to_numeric(f["pc_capacity_visits"], errors="coerce").replace(0, np.nan),
+    ),
+}
+
+
+def add_derived_fields(panel: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of the panel with DERIVED_FIELDS added where their inputs exist."""
+    result = panel.copy()
+    for field, (inputs, formula) in DERIVED_FIELDS.items():
+        if field not in result and all(column in result for column in inputs):
+            result[field] = formula(result)
+    return result
 
 
 def validate_thresholds(thresholds: Mapping[str, Mapping[str, object]] = COMMAND_CENTER_THRESHOLDS) -> None:
